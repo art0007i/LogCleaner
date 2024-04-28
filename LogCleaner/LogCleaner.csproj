@@ -25,9 +25,12 @@
       <HintPath>$(GamePath)rml_libs\0Harmony.dll</HintPath>
       <HintPath Condition="Exists('$(GamePath)0Harmony.dll')">$(GamePath)0Harmony.dll</HintPath>
     </Reference>
-    <Reference Include="Elements.Core">
-      <HintPath>$(GamePath)Resonite_Data\Managed\Elements.Core.dll</HintPath>
-    </Reference>
+		<Reference Include="Elements.Core">
+			<HintPath>$(GamePath)Resonite_Data\Managed\Elements.Core.dll</HintPath>
+		</Reference>
+		<Reference Include="SkyFrost.Base">
+			<HintPath>$(GamePath)Resonite_Data\Managed\SkyFrost.Base.dll</HintPath>
+		</Reference>
     <Reference Include="FrooxEngine">
       <HintPath>$(GamePath)Resonite_Data\Managed\FrooxEngine.dll</HintPath>
     </Reference>
