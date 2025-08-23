@@ -17,7 +17,7 @@ namespace LogCleaner
     {
         public override string Name => "LogCleaner";
         public override string Author => "art0007i";
-        public override string Version => "1.1.0";
+        public override string Version => "1.1.1";
         public override string Link => "https://github.com/art0007i/LogCleaner/";
 
         public static HashSet<MethodInfo> logMethods = new HashSet<MethodInfo>
@@ -26,25 +26,6 @@ namespace LogCleaner
             typeof(UniLog).GetMethod("Log", new Type[] { typeof(object), typeof(bool) }),
             typeof(UniLog).GetMethod("Warning"),
             typeof(UniLog).GetMethod("Error")
-        };
-
-        public static Type[] ctxMenuTypes =
-        {
-            typeof(AssetToolReplacementMode),
-            typeof(DevTool.Selection),
-            typeof(DevTool.Interaction),
-            typeof(LightTool.Mode),
-            typeof(ShadowType),
-            typeof(MeterTool.Mode),
-            typeof(AssetToolReplacementMode),
-            typeof(bool),
-            typeof(CameraControlTool.CameraMode),
-            typeof(Glue.Mode),
-            typeof(MicrophoneTool.RecordFormat),
-            typeof(MicrophoneTool.RecordMode),
-            typeof(MicrophoneTool.DataSource),
-            typeof(VolumePlaneMode),
-            typeof(ShadowCastMode)
         };
 
         // functions in here will still print messages, but not stack traces
@@ -74,16 +55,6 @@ namespace LogCleaner
         public override void OnEngineInit()
         {
             Harmony harmony = new Harmony("me.art0007i.LogCleaner");
-
-            Debug("Patching ctx menu funcs");
-            // Patch context menu stuffs
-            var GenericToPatch = typeof(RadialMenuItemExtensions).GetMethod(nameof(RadialMenuItemExtensions.AttachOptionDescriptionDriver));
-            var patcherMethod = new HarmonyMethod(AccessTools.Method(typeof(ContextMenuOpenPatch), nameof(ContextMenuOpenPatch.Transpiler)));
-            foreach (var item in ctxMenuTypes)
-            {
-                var toPatch = GenericToPatch.MakeGenericMethod(item);
-                harmony.Patch(toPatch, transpiler: patcherMethod);
-            }
 
             Debug("Patching stack trace funcs");
             // Remove stack traces
@@ -144,30 +115,6 @@ namespace LogCleaner
                 return instructions;
             }
         }
-
-        class ContextMenuOpenPatch
-        {
-            public static void SafeSetTarget(ISyncRef driver, ISyncRef target)
-            {
-                if (!target.IsLinked) driver.Target = target;
-            }
-
-            public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> codes)
-            {
-                foreach (var code in codes)
-                {
-                    if(code.operand is MethodInfo mf && mf.Name == "set_Target")
-                    {
-                        yield return new(OpCodes.Call, typeof(ContextMenuOpenPatch).GetMethod(nameof(SafeSetTarget)));
-                    }
-                    else
-                    {
-                        yield return code;
-                    }
-                }
-            }
-        }
-
         class RemoveLogMethodPatch
         {
             public static void FakeLog(string message, bool stackTrace) { }
