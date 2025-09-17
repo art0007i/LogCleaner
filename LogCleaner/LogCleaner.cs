@@ -43,11 +43,15 @@ namespace LogCleaner
             AccessTools.Method(typeof(ContactData), "ClearExpired"),
             AccessTools.Method(typeof(UserStatusManager), "SendStatusToUser"),
             FindAsyncBody(AccessTools.Method(typeof(AppHub), "BroadcastStatus")),
+
+            // NEW: also silence BroadcastSession SessionInfo spam
+            FindAsyncBody(AccessTools.Method(typeof(AppHub), "BroadcastSession")),
         };
 
         public static MethodInfo FindAsyncBody (MethodInfo mi)
         {
-            AsyncStateMachineAttribute asyncAttribute = (AsyncStateMachineAttribute)mi.GetCustomAttribute(typeof(AsyncStateMachineAttribute));
+            AsyncStateMachineAttribute asyncAttribute =
+            (AsyncStateMachineAttribute)mi.GetCustomAttribute(typeof(AsyncStateMachineAttribute));
             Type asyncStateMachineType = asyncAttribute.StateMachineType;
             return AccessTools.Method(asyncStateMachineType, nameof(IAsyncStateMachine.MoveNext));
         }
