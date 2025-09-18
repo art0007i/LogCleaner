@@ -49,7 +49,7 @@ namespace LogCleaner
             FindAsyncBody(AccessTools.Method(typeof(AppHub), "BroadcastStatus")),
         };
 
-        public static MethodInfo FindAsyncBody (MethodInfo mi)
+        public static MethodInfo FindAsyncBody(MethodInfo mi)
         {
             AsyncStateMachineAttribute asyncAttribute = (AsyncStateMachineAttribute)mi.GetCustomAttribute(typeof(AsyncStateMachineAttribute));
             Type asyncStateMachineType = asyncAttribute.StateMachineType;
