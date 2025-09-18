@@ -17,7 +17,7 @@ namespace LogCleaner
     {
         public override string Name => "LogCleaner";
         public override string Author => "art0007i";
-        public override string Version => "1.1.1";
+        public override string Version => "1.1.2";
         public override string Link => "https://github.com/art0007i/LogCleaner/";
 
         public static HashSet<MethodInfo> logMethods = new HashSet<MethodInfo>
@@ -45,7 +45,7 @@ namespace LogCleaner
             FindAsyncBody(AccessTools.Method(typeof(AppHub), "BroadcastStatus")),
         };
 
-        public static MethodInfo FindAsyncBody (MethodInfo mi)
+        public static MethodInfo FindAsyncBody(MethodInfo mi)
         {
             AsyncStateMachineAttribute asyncAttribute = (AsyncStateMachineAttribute)mi.GetCustomAttribute(typeof(AsyncStateMachineAttribute));
             Type asyncStateMachineType = asyncAttribute.StateMachineType;
@@ -89,7 +89,62 @@ namespace LogCleaner
                     Debug(e);
                 }
             }
+
+            // --- Extra silencers ---
+
+            // Drop "Running refresh on: OwnerId: ..., Path: ..." spam.
+            // We don't pre-scan IL. Instead, we attach a lightweight transpiler to methods in FrooxEngine
+            // that will NO-OP UniLog.Log(...) only if the method actually loads the target literal.
+            try
+            {
+                var feAsm = typeof(ContactData).Assembly; // pass Assembly, not Type
+                var dropTranspiler = new HarmonyMethod(typeof(DropSpecificLogPatch).GetMethod(nameof(DropSpecificLogPatch.Transpiler)));
+
+                foreach (var t in AccessTools.GetTypesFromAssembly(feAsm))
+                {
+                    MethodInfo[] methods;
+                    try
+                    {
+                        methods = t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
+                    }
+                    catch
+                    {
+                        continue;
+                    }
+
+                    foreach (var m in methods)
+                    {
+                        // Only patch methods that have bodies
+                        if (m == null || m.IsAbstract) continue;
+                        try
+                        {
+                            if (m.GetMethodBody() == null) continue;
+                        }
+                        catch
+                        {
+                            continue;
+                        }
+
+                        try
+                        {
+                            harmony.Patch(m, transpiler: dropTranspiler);
+                        }
+                        catch
+                        {
+                            // best-effort patching; ignore per-method errors
+                        }
+                    }
+                }
+                Debug("Applied conditional refresh-spam suppressor to FrooxEngine methods.");
+            }
+            catch (Exception e)
+            {
+                Debug("Failed to attach refresh-spam suppressor: " + e);
+            }
+
+            // SignalR BroadcastSession spam is already handled by removeLog (BroadcastStatus async body).
         }
+
         class StackTraceFixerPatch
         {
             public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> codes)
@@ -115,6 +170,7 @@ namespace LogCleaner
                 return instructions;
             }
         }
+
         class RemoveLogMethodPatch
         {
             public static void FakeLog(string message, bool stackTrace) { }
@@ -130,6 +186,40 @@ namespace LogCleaner
                     else
                     {
                         yield return code;
+                    }
+                }
+            }
+        }
+
+        // Conditional drop: only nop-out UniLog.Log(...) when the method pushes a literal that contains "Running refresh on:"
+        class DropSpecificLogPatch
+        {
+            public static void FakeLog(string message, bool stackTrace) { }
+
+            public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+            {
+                var list = new List<CodeInstruction>(instructions);
+                var fake = typeof(DropSpecificLogPatch).GetMethod(nameof(FakeLog));
+
+                bool suppressInThisMethod = false;
+                for (int i = 0; i < list.Count; i++)
+                {
+                    var ci = list[i];
+
+                    // If this method loads our literal anywhere, enable suppression for this method
+                    if (ci.opcode == OpCodes.Ldstr && ci.operand is string s && s.Contains("Running refresh on:"))
+                    {
+                        suppressInThisMethod = true;
+                    }
+
+                    if (suppressInThisMethod && logMethods.Contains(ci.operand))
+                    {
+                        // replace UniLog.Log(...) call with no-op
+                        yield return new CodeInstruction(OpCodes.Call, fake);
+                    }
+                    else
+                    {
+                        yield return ci;
                     }
                 }
             }
