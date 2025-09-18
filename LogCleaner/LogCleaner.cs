@@ -17,7 +17,7 @@ namespace LogCleaner
     {
         public override string Name => "LogCleaner";
         public override string Author => "art0007i";
-        public override string Version => "1.1.1";
+        public override string Version => "1.1.2";
         public override string Link => "https://github.com/art0007i/LogCleaner/";
 
         public static HashSet<MethodInfo> logMethods = new HashSet<MethodInfo>
@@ -43,11 +43,15 @@ namespace LogCleaner
             AccessTools.Method(typeof(ContactData), "ClearExpired"),
             AccessTools.Method(typeof(UserStatusManager), "SendStatusToUser"),
             FindAsyncBody(AccessTools.Method(typeof(AppHub), "BroadcastStatus")),
+
+            // NEW: also silence BroadcastSession SessionInfo spam
+            FindAsyncBody(AccessTools.Method(typeof(AppHub), "BroadcastSession")),
         };
 
         public static MethodInfo FindAsyncBody (MethodInfo mi)
         {
-            AsyncStateMachineAttribute asyncAttribute = (AsyncStateMachineAttribute)mi.GetCustomAttribute(typeof(AsyncStateMachineAttribute));
+            AsyncStateMachineAttribute asyncAttribute =
+            (AsyncStateMachineAttribute)mi.GetCustomAttribute(typeof(AsyncStateMachineAttribute));
             Type asyncStateMachineType = asyncAttribute.StateMachineType;
             return AccessTools.Method(asyncStateMachineType, nameof(IAsyncStateMachine.MoveNext));
         }
