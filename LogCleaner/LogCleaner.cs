@@ -10,7 +10,6 @@ using System.Reflection.Emit;
 using Elements.Core;
 using SkyFrost.Base;
 using System.Runtime.CompilerServices;
-using System.Text.RegularExpressions; // NEW: for simple message pattern matching
 
 namespace LogCleaner
 {
@@ -34,9 +33,6 @@ namespace LogCleaner
         {
             // This happens whenever you change name or description of a world (often triggered without interaction)
             AccessTools.Method(typeof(WorldConfiguration), "FieldChanged"),
-
-            // NEW: many long “OrderOffset … driven by Target …” warnings originate here
-            AccessTools.Method(typeof(FrooxEngine.SyncElement), "BeginModification", new Type[] { typeof(bool) }),
         };
 
         // functions in here will be completely silenced
@@ -94,16 +90,59 @@ namespace LogCleaner
                 }
             }
 
-            // NEW: targeted filter at UniLog so we can drop or de-stacktrace specific messages
+            // --- Extra silencers ---
+
+            // Drop "Running refresh on: OwnerId: ..., Path: ..." spam.
+            // We don't pre-scan IL. Instead, we attach a lightweight transpiler to methods in FrooxEngine
+            // that will NO-OP UniLog.Log(...) only if the method actually loads the target literal.
             try
             {
-                harmony.PatchAll(typeof(FilteredUniLogPatch));
+                var feAsm = typeof(ContactData).Assembly; // pass Assembly, not Type
+                var dropTranspiler = new HarmonyMethod(typeof(DropSpecificLogPatch).GetMethod(nameof(DropSpecificLogPatch.Transpiler)));
+
+                foreach (var t in AccessTools.GetTypesFromAssembly(feAsm))
+                {
+                    MethodInfo[] methods;
+                    try
+                    {
+                        methods = t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
+                    }
+                    catch
+                    {
+                        continue;
+                    }
+
+                    foreach (var m in methods)
+                    {
+                        // Only patch methods that have bodies
+                        if (m == null || m.IsAbstract) continue;
+                        try
+                        {
+                            if (m.GetMethodBody() == null) continue;
+                        }
+                        catch
+                        {
+                            continue;
+                        }
+
+                        try
+                        {
+                            harmony.Patch(m, transpiler: dropTranspiler);
+                        }
+                        catch
+                        {
+                            // best-effort patching; ignore per-method errors
+                        }
+                    }
+                }
+                Debug("Applied conditional refresh-spam suppressor to FrooxEngine methods.");
             }
             catch (Exception e)
             {
-                Debug("  error enabling FilteredUniLogPatch");
-                Debug(e);
+                Debug("Failed to attach refresh-spam suppressor: " + e);
             }
+
+            // SignalR BroadcastSession spam is already handled by removeLog (BroadcastStatus async body).
         }
 
         class StackTraceFixerPatch
@@ -152,51 +191,37 @@ namespace LogCleaner
             }
         }
 
-        // NEW: Small, surgical filter that
-        //  - drops "Running refresh on:" lines completely
-        //  - keeps "OrderOffset ... driven by Target ..." but without stack traces
-        [HarmonyPatch]
-        static class FilteredUniLogPatch
+        // Conditional drop: only nop-out UniLog.Log(...) when the method pushes a literal that contains "Running refresh on:"
+        class DropSpecificLogPatch
         {
-            static readonly Regex[] Drop =
-            {
-                new(@"^Running refresh on:", RegexOptions.Compiled),
-            };
+            public static void FakeLog(string message, bool stackTrace) { }
 
-            static readonly Regex[] NoStack =
+            public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
             {
-                new(@"^The OrderOffset .* is currently being driven by Target", RegexOptions.Compiled),
-            };
+                var list = new List<CodeInstruction>(instructions);
+                var fake = typeof(DropSpecificLogPatch).GetMethod(nameof(FakeLog));
 
-            static bool ShouldDrop(string s) => s != null && Array.Exists(Drop, r => r.IsMatch(s));
-            static bool ShouldNoStack(string s) => s != null && Array.Exists(NoStack, r => r.IsMatch(s));
+                bool suppressInThisMethod = false;
+                for (int i = 0; i < list.Count; i++)
+                {
+                    var ci = list[i];
 
-            [HarmonyPrefix]
-            [HarmonyPatch(typeof(UniLog), nameof(UniLog.Log), new[] { typeof(string), typeof(bool) })]
-            static bool Log_Prefix(ref string message, ref bool stackTrace)
-            {
-                if (ShouldDrop(message)) return false;
-                if (ShouldNoStack(message)) stackTrace = false;
-                return true;
-            }
+                    // If this method loads our literal anywhere, enable suppression for this method
+                    if (ci.opcode == OpCodes.Ldstr && ci.operand is string s && s.Contains("Running refresh on:"))
+                    {
+                        suppressInThisMethod = true;
+                    }
 
-            [HarmonyPrefix]
-            [HarmonyPatch(typeof(UniLog), nameof(UniLog.Warning), new[] { typeof(string), typeof(bool) })]
-            static bool Warning_Prefix(ref string message, ref bool stackTrace)
-            {
-                if (ShouldDrop(message)) return false;
-                if (ShouldNoStack(message)) stackTrace = false;
-                return true;
-            }
-
-            [HarmonyPrefix]
-            [HarmonyPatch(typeof(UniLog), nameof(UniLog.Log), new[] { typeof(object), typeof(bool) })]
-            static bool LogObj_Prefix(ref object message, ref bool stackTrace)
-            {
-                var s = message?.ToString();
-                if (ShouldDrop(s)) return false;
-                if (ShouldNoStack(s)) stackTrace = false;
-                return true;
+                    if (suppressInThisMethod && logMethods.Contains(ci.operand))
+                    {
+                        // replace UniLog.Log(...) call with no-op
+                        yield return new CodeInstruction(OpCodes.Call, fake);
+                    }
+                    else
+                    {
+                        yield return ci;
+                    }
+                }
             }
         }
     }
