@@ -6,6 +6,7 @@ Currently it will:
 - Remove an error that happens basically every time you open your context menu
 - Remove stacktraces from changing world properties like world name
 - Remove spam related to contact status updates
+- Remove spam related to broadcasting session info
 
 ## Installation
 1. Install [ResoniteModLoader](https://github.com/resonite-modding-group/ResoniteModLoader).
