@@ -3,7 +3,6 @@ using ResoniteModLoader;
 using System;
 using System.Linq;
 using System.Reflection;
-using System.Threading.Tasks;
 using System.Collections.Generic;
 using FrooxEngine;
 using System.Reflection.Emit;
@@ -17,13 +16,13 @@ namespace LogCleaner
     {
         public override string Name => "LogCleaner";
         public override string Author => "art0007i";
-        public override string Version => "1.1.2";
+        public override string Version => "1.1.3";
         public override string Link => "https://github.com/art0007i/LogCleaner/";
 
         public static HashSet<MethodInfo> logMethods = new HashSet<MethodInfo>
         {
-            typeof(UniLog).GetMethod("Log", new Type[] { typeof(string), typeof(bool) }),
-            typeof(UniLog).GetMethod("Log", new Type[] { typeof(object), typeof(bool) }),
+            typeof(UniLog).GetMethod("Log", [typeof(string), typeof(bool)]),
+            typeof(UniLog).GetMethod("Log", [typeof(object), typeof(bool)]),
             typeof(UniLog).GetMethod("Warning"),
             typeof(UniLog).GetMethod("Error")
         };
@@ -44,6 +43,7 @@ namespace LogCleaner
             AccessTools.Method(typeof(UserStatusManager), "SendStatusToUser"),
             FindAsyncBody(AccessTools.Method(typeof(AppHub), "BroadcastStatus")),
             FindAsyncBody(AccessTools.Method(typeof(AppHub), "BroadcastSession")),
+            AccessTools.Method(typeof(CloudVariableProxy), nameof(CloudVariableProxy.Refresh)),
         };
 
         public static MethodInfo FindAsyncBody (MethodInfo mi)

@@ -3,10 +3,11 @@
 A [ResoniteModLoader](https://github.com/resonite-modding-group/ResoniteModLoader) mod for [Resonite](https://resonite.com/) that omits certain information from your logs to make them more readable.
 
 Currently it will:
-- Remove an error that happens basically every time you open your context menu
+- ~~Remove an error that happens basically every time you open your context menu~~ I think this was fixed by ProbablePrime!
 - Remove stacktraces from changing world properties like world name
 - Remove spam related to contact status updates
 - Remove spam related to broadcasting session info
+- Remove spam related to cloud variable refresh
 
 ## Installation
 1. Install [ResoniteModLoader](https://github.com/resonite-modding-group/ResoniteModLoader).

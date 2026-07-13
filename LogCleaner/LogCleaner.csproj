@@ -6,8 +6,8 @@
     <RootNamespace>LogCleaner</RootNamespace>
     <AssemblyTitle>LogCleaner</AssemblyTitle>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <LangVersion>10</LangVersion>
-    <TargetFramework>net9.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <TargetFramework>net10.0</TargetFramework>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
     <GamePath>$(MSBuildThisFileDirectory)Resonite</GamePath>
@@ -22,10 +22,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Reference Include="HarmonyLib">
-      <HintPath>$(GamePath)rml_libs\0Harmony.dll</HintPath>
-      <HintPath Condition="Exists('$(GamePath)0Harmony.dll')">$(GamePath)0Harmony.dll</HintPath>
-    </Reference>
+      <PackageReference Include="Lib.Harmony" Version="2.4.2" />
+      <PackageReference Include="ResoniteModLoader" Version="5.0.1" />
 		<Reference Include="Elements.Core">
 			<HintPath>$(GameLibs)Elements.Core.dll</HintPath>
 		</Reference>
@@ -38,10 +36,6 @@
 		<Reference Include="Renderite.Shared">
 			<HintPath>$(GameLibs)Renderite.Shared.dll</HintPath>
 		</Reference>
-    <Reference Include="ResoniteModLoader">
-      <HintPath>$(GamePath)ResoniteModLoader.dll</HintPath>
-      <HintPath>$(GamePath)Libraries\ResoniteModLoader.dll</HintPath>
-    </Reference>
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="'$(CopyToMods)'=='true'">
